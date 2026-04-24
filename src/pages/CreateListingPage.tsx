@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Wallet, Calendar, Tag, Coins, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, Wallet, Calendar, Tag, Coins, Clock, CheckCircle, AlertCircle, Image } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -18,10 +18,14 @@ interface FormState {
   expectedTgePrice: string;
   settlementDate: string;
   proofUrl: string;
+  logoUrl: string;
 }
 
 export function CreateListingPage() {
   const { wallet } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [form, setForm] = useState<FormState>({
     projectName: '',
     listingType: 'pre_tge',
@@ -34,11 +38,47 @@ export function CreateListingPage() {
     expectedTgePrice: '',
     settlementDate: '',
     proofUrl: '',
+    logoUrl: '',
   });
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
 
   const update = (key: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleLogoUpload = async (file: File) => {
+    if (!file) return;
+    setUploadingLogo(true);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+      const filePath = `logos/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('listings')
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('listings')
+        .getPublicUrl(filePath);
+
+      setLogoPreview(publicUrl);
+      update('logoUrl', publicUrl);
+    } catch {
+      // Fallback: use a data URL preview if storage fails
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        setLogoPreview(dataUrl);
+        update('logoUrl', dataUrl);
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -59,6 +99,7 @@ export function CreateListingPage() {
         expected_tge_price: parseFloat(form.expectedTgePrice) || 0,
         settlement_date: form.settlementDate || null,
         proof_url: form.proofUrl,
+        logo_url: form.logoUrl,
         status: 'pending',
       });
 
@@ -77,7 +118,11 @@ export function CreateListingPage() {
           <h2 className="text-2xl font-bold mb-2">Listing Submitted</h2>
           <p className="text-gray-400 mb-6">Your listing is pending admin approval. You will be notified once reviewed.</p>
           <button
-            onClick={() => { setSubmitStatus('idle'); setForm({ projectName: '', listingType: 'pre_tge', tokenAmount: '', pricePerToken: '', discountPercent: '', tgeUnlockPercent: '', vestingDurationMonths: '', cliffMonths: '', expectedTgePrice: '', settlementDate: '', proofUrl: '' }); }}
+            onClick={() => {
+              setSubmitStatus('idle');
+              setForm({ projectName: '', listingType: 'pre_tge', tokenAmount: '', pricePerToken: '', discountPercent: '', tgeUnlockPercent: '', vestingDurationMonths: '', cliffMonths: '', expectedTgePrice: '', settlementDate: '', proofUrl: '', logoUrl: '' });
+              setLogoPreview(null);
+            }}
             className="px-6 py-3 rounded-xl bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition-all"
           >
             Create Another Listing
@@ -95,6 +140,44 @@ export function CreateListingPage() {
       </div>
 
       <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5">
+        {/* Coin Logo Upload */}
+        <div className="mb-6">
+          <label className="text-xs text-gray-500 mb-2 block">Coin / Project Logo</label>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-20 h-20 rounded-2xl border-2 border-dashed border-white/10 hover:border-emerald-500/30 transition-all flex items-center justify-center overflow-hidden bg-white/5"
+            >
+              {logoPreview ? (
+                <img src={logoPreview} alt="Logo" className="w-full h-full object-cover rounded-2xl" />
+              ) : uploadingLogo ? (
+                <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Image className="w-8 h-8 text-gray-500" />
+              )}
+            </button>
+            <div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="text-sm text-emerald-400 hover:underline"
+              >
+                {logoPreview ? 'Change logo' : 'Upload logo'}
+              </button>
+              <p className="text-xs text-gray-500 mt-1">PNG, JPG, or SVG. Max 2MB.</p>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleLogoUpload(file);
+              }}
+            />
+          </div>
+        </div>
+
         {/* Listing Type Toggle */}
         <div className="mb-6">
           <label className="text-xs text-gray-500 mb-2 block">Listing Type</label>

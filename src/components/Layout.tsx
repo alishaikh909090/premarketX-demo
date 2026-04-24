@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Wallet, TrendingUp, LayoutDashboard, Trophy, Menu, X, ChevronDown, LogOut,
-  FileCode, Shield, Plus, BarChart3, Zap, Radio, Bell, BellRing
+  FileCode, Shield, Plus, BarChart3, Zap, Radio, Bell, BellRing, LogIn, Mail
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -18,7 +18,11 @@ export function Layout({ currentPage, onNavigate, children }: LayoutProps) {
   const [walletDropdownOpen, setWalletDropdownOpen] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const { isAdmin, toggleRole, wallet } = useAuth();
+  const { isAdmin, toggleRole, wallet, isEmailAdmin, userEmail, signInWithEmail, signOut } = useAuth();
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
 
   const userNavItems: { page: Page; label: string; icon: React.ReactNode }[] = [
     { page: 'markets', label: 'Markets', icon: <TrendingUp className="w-4 h-4" /> },
@@ -125,10 +129,10 @@ export function Layout({ currentPage, onNavigate, children }: LayoutProps) {
               </div>
             )}
 
-            {/* Right side: Role toggle + Notifications + Wallet */}
+            {/* Right side: Role toggle + Admin Login + Notifications + Wallet */}
             <div className="hidden md:flex items-center gap-2">
               {/* Role Toggle */}
-              {!isLanding && (
+              {!isLanding && isEmailAdmin && (
                 <button
                   onClick={toggleRole}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -140,6 +144,27 @@ export function Layout({ currentPage, onNavigate, children }: LayoutProps) {
                   <Shield className="w-3.5 h-3.5" />
                   {isAdmin ? 'Admin' : 'User'}
                 </button>
+              )}
+
+              {/* Admin Login / Status */}
+              {!isLanding && (
+                isEmailAdmin ? (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/5 border border-emerald-500/10 text-emerald-400">
+                    <Mail className="w-3 h-3" />
+                    <span className="max-w-[120px] truncate">{userEmail}</span>
+                    <button onClick={signOut} className="ml-1 hover:text-red-400 transition-colors">
+                      <LogOut className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowLoginModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 border border-white/5 text-gray-400 hover:bg-white/10 transition-all"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    Admin Login
+                  </button>
+                )
               )}
 
               {/* Notifications */}
@@ -273,6 +298,74 @@ export function Layout({ currentPage, onNavigate, children }: LayoutProps) {
       <main className={isLanding ? '' : 'pt-16'}>
         {children}
       </main>
+
+      {/* Admin Login Modal */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm p-6 rounded-2xl bg-[#14161f] border border-white/10">
+            <h3 className="text-xl font-bold mb-1">Admin Login</h3>
+            <p className="text-sm text-gray-400 mb-6">Sign in with your admin email to access the control panel.</p>
+
+            {loginError && (
+              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/10 text-sm text-red-400">
+                {loginError}
+              </div>
+            )}
+
+            <div className="space-y-3 mb-6">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Email</label>
+                <input
+                  type="email"
+                  value={loginEmail}
+                  onChange={(e) => { setLoginEmail(e.target.value); setLoginError(''); }}
+                  placeholder="admin@example.com"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Password</label>
+                <input
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => { setLoginPassword(e.target.value); setLoginError(''); }}
+                  placeholder="Enter password"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowLoginModal(false); setLoginError(''); setLoginEmail(''); setLoginPassword(''); }}
+                className="flex-1 py-3 rounded-xl bg-white/5 text-gray-400 font-medium hover:bg-white/10 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!loginEmail || !loginPassword) {
+                    setLoginError('Please enter email and password');
+                    return;
+                  }
+                  const { error } = await signInWithEmail(loginEmail, loginPassword);
+                  if (error) {
+                    setLoginError(error);
+                  } else {
+                    setShowLoginModal(false);
+                    setLoginEmail('');
+                    setLoginPassword('');
+                    setLoginError('');
+                  }
+                }}
+                className="flex-1 py-3 rounded-xl bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition-all"
+              >
+                Sign In
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

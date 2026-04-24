@@ -190,7 +190,16 @@ export function AdminListingsPage() {
                   className="hover:bg-white/[0.02] transition-colors"
                 >
                   <td className="px-4 py-3">
-                    <p className="text-sm font-medium">{listing.project_name}</p>
+                    <div className="flex items-center gap-2">
+                      {listing.logo_url ? (
+                        <img src={listing.logo_url} alt="" className="w-6 h-6 rounded-lg object-cover" />
+                      ) : (
+                        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-emerald-400/30 to-cyan-400/30 flex items-center justify-center text-[10px] font-bold">
+                          {listing.project_name.slice(0, 2)}
+                        </div>
+                      )}
+                      <p className="text-sm font-medium">{listing.project_name}</p>
+                    </div>
                     {listing.listing_type === 'vesting' && (
                       <p className="text-[10px] text-gray-500">
                         {listing.vesting_duration_months}mo vesting / {listing.cliff_months}mo cliff

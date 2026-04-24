@@ -84,6 +84,7 @@ export interface Listing {
   expected_tge_price: number;
   settlement_date: string;
   proof_url: string;
+  logo_url: string;
   admin_notes: string;
   reviewed_by: string | null;
   reviewed_at: string | null;
